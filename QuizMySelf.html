@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>QuizMySelf</title>
+  <style>
+    :root{
+      --peach:#FFD8C2;
+      --white:#ffffff;
+      --accent:#ff725e;
+      --card-shadow:0 10px 30px rgba(0,0,0,0.12);
+      --radius:16px;
+      --ease: cubic-bezier(.22,.9,.39,1);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;min-height:100vh;background:var(--peach);display:flex;flex-direction:column;align-items:center;padding:28px}
+    .wrap{width:100%;max-width:1100px}
+
+    /* Header */
+    header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+    .brand{font-weight:800;font-size:18px}
+    .controls{display:flex;gap:8px;align-items:center}
+    input[type=search]{padding:10px 12px;border-radius:12px;border:1px solid rgba(0,0,0,0.08);min-width:220px;transition:transform .2s var(--ease)}
+    input[type=search]:focus{outline:none;transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,0.06)}
+
+    /* Grid */
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px}
+    .card{background:var(--white);border-radius:var(--radius);overflow:hidden;box-shadow:var(--card-shadow);cursor:pointer;position:relative;transition:transform .25s var(--ease),box-shadow .25s var(--ease)}
+    .card:hover{transform:translateY(-8px);box-shadow:0 18px 48px rgba(0,0,0,0.14)}
+    .add-card{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;min-height:220px}
+    .add-icon{width:84px;height:84px;border-radius:12px;border:2px dashed rgba(0,0,0,0.08);display:flex;align-items:center;justify-content:center;font-size:42px;color:var(--accent);}
+    .card .thumb{height:150px;background:#faf6f2;display:flex;align-items:center;justify-content:center}
+    .card img{width:100%;height:100%;object-fit:cover}
+    .title{padding:14px 16px;font-weight:700}
+    .top-right{position:absolute;right:8px;top:8px}
+    .menu-btn{background:transparent;border:none;font-size:20px;padding:6px;border-radius:10px;cursor:pointer}
+    .desc-popup{position:absolute;right:12px;top:36px;background:var(--white);padding:10px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,0.12);max-width:260px;display:none;z-index:30}
+
+    /* Modals */
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,0.35);display:none;align-items:center;justify-content:center;z-index:100}
+    .modal{background:var(--white);border-radius:14px;padding:18px;min-width:320px;max-width:900px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,0.28);transform-origin:center;transition:transform .28s var(--ease),opacity .28s var(--ease)}
+    .modal.hidden{transform:scale(.96);opacity:0}
+    label{display:block;font-size:13px;margin-top:10px}
+    input[type=text],textarea,input[type=file]{width:100%;padding:10px;border-radius:10px;border:1px solid #eee}
+    textarea{min-height:110px;resize:vertical}
+    .muted{font-size:13px;color:#666}
+
+    .btn{padding:10px 14px;border-radius:10px;border:none;cursor:pointer;font-weight:700}
+    .btn-primary{background:var(--accent);color:white}
+    .btn-ghost{background:transparent;border:1px solid #eee}
+
+    /* QA editor rows */
+    .qa-row{display:flex;gap:8px;margin:10px 0}
+    .qa-row input{flex:1}
+    .small{font-size:12px;color:#666}
+
+    /* countdown */
+    .countdown{font-size:96px;font-weight:900;color:var(--accent);text-align:center}
+    @keyframes pulse{0%{transform:scale(1)}50%{transform:scale(1.14)}100%{transform:scale(1)}}
+    .countdown.pulse{animation:pulse 1s linear infinite}
+
+    /* quiz view */
+    .quiz-question{font-size:20px;font-weight:800;margin:8px 0}
+    .quiz-input{width:100%;padding:12px;border-radius:10px;border:1px solid #eee}
+
+    /* results */
+    .result-row{padding:10px;border-radius:10px;background:#fafafa;margin-bottom:8px}
+    .correct{color:green;font-weight:800}
+    .wrong{color:crimson;font-weight:800}
+
+    /* score bubble */
+    #scoreBubble{position:fixed;right:18px;top:18px;background:var(--accent);color:white;padding:10px 16px;border-radius:999px;font-weight:800;box-shadow:0 14px 40px rgba(0,0,0,0.2);z-index:200}
+
+    @media (max-width:600px){header{flex-direction:column;align-items:flex-start} .controls{width:100%;justify-content:space-between}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand">Quiz Maker</div>
+      <div class="controls">
+        <input id="searchInput" type="search" placeholder="Search projects...">
+        <button id="newBtn" class="btn btn-primary">New Project</button>
+      </div>
+    </header>
+
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <div id="scoreBubble">Score: 0%</div>
+
+  <!-- Create / Edit Project Modal -->
+  <div class="overlay" id="projectModal">
+    <div class="modal hidden" id="projectModalBox">
+      <h3 id="pmTitle">Create project</h3>
+      <label>Project name</label>
+      <input id="pmName" type="text" placeholder="Project name">
+      <label>Project image (optional)</label>
+      <input id="pmImage" type="file" accept="image/*">
+      <label>Description (≤100 words)</label>
+      <textarea id="pmDesc" placeholder="Short description"></textarea>
+      <div class="muted" id="pmWordCount">0 / 100 words</div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+        <button id="pmCancel" class="btn btn-ghost">Cancel</button>
+        <button id="pmSave" class="btn btn-primary">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- QA Editor Modal -->
+  <div class="overlay" id="editorModal">
+    <div class="modal hidden" id="editorBox">
+      <h3>Edit Quiz — <span id="editorProjectName"></span></h3>
+      <div class="muted">First 10 Q/A are required. Add up to 100 total.</div>
+      <div id="qaList" style="max-height:380px;overflow:auto;margin-top:12px"></div>
+      <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:12px">
+        <div class="small muted">Lines: <span id="linesCount">0</span>/100</div>
+        <div>
+          <button id="addQA" class="btn btn-ghost">Add</button>
+          <button id="cancelQA" class="btn">Cancel</button>
+          <button id="submitQuiz" class="btn btn-primary">Submit</button>
+          <button id="submitAndPlay" class="btn btn-primary">Submit & Quiz me</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Countdown Modal -->
+  <div class="overlay" id="countModal">
+    <div class="modal hidden" id="countBox">
+      <div class="countdown pulse" id="countNumber">5</div>
+    </div>
+  </div>
+
+  <!-- Quiz Play Modal -->
+  <div class="overlay" id="playModal">
+    <div class="modal hidden" id="playBox">
+      <h3 id="playTitle">Quiz</h3>
+      <div class="quiz-question" id="playQuestion">Question text</div>
+      <input id="playAnswer" class="quiz-input" placeholder="Type your answer here">
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+        <button id="prevQ" class="btn btn-ghost">Prev</button>
+        <button id="skipQ" class="btn btn-ghost">Skip</button>
+        <button id="nextQ" class="btn btn-primary">Check / Next</button>
+      </div>
+      <div class="muted" id="playProgress" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+  <!-- Results Modal -->
+  <div class="overlay" id="resultsModal">
+    <div class="modal hidden" id="resultsBox">
+      <h3>Your Results — <span id="resultsPct">0%</span></h3>
+      <div id="resultsContainer" style="max-height:480px;overflow:auto;margin-top:8px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+        <button id="closeResults" class="btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ---------- Utilities ---------- */
+const qs = s => document.querySelector(s);
+const qsa = s => Array.from(document.querySelectorAll(s));
+function uid(){return Math.random().toString(36).slice(2,9)}
+
+/* ---------- Persistence ---------- */
+let projects = JSON.parse(localStorage.getItem('quiz_projects_v1') || '[]');
+function saveAll(){ localStorage.setItem('quiz_projects_v1', JSON.stringify(projects)); updateScoreBubble(); }
+
+/* ---------- Elements ---------- */
+const grid = qs('#grid');
+const searchInput = qs('#searchInput');
+const newBtn = qs('#newBtn');
+const scoreBubble = qs('#scoreBubble');
+
+/* Modals */
+const projectModal = qs('#projectModal');
+const projectModalBox = qs('#projectModalBox');
+const pmTitle = qs('#pmTitle');
+const pmName = qs('#pmName');
+const pmImage = qs('#pmImage');
+const pmDesc = qs('#pmDesc');
+const pmWordCount = qs('#pmWordCount');
+const pmCancel = qs('#pmCancel');
+const pmSave = qs('#pmSave');
+
+const editorModal = qs('#editorModal');
+const editorBox = qs('#editorBox');
+const editorProjectName = qs('#editorProjectName');
+const qaList = qs('#qaList');
+const addQA = qs('#addQA');
+const cancelQA = qs('#cancelQA');
+const submitQuiz = qs('#submitQuiz');
+const submitAndPlay = qs('#submitAndPlay');
+const linesCount = qs('#linesCount');
+
+const countModal = qs('#countModal');
+const countNumber = qs('#countNumber');
+
+const playModal = qs('#playModal');
+const playBox = qs('#playBox');
+const playTitle = qs('#playTitle');
+const playQuestion = qs('#playQuestion');
+const playAnswer = qs('#playAnswer');
+const playProgress = qs('#playProgress');
+const prevQ = qs('#prevQ');
+const skipQ = qs('#skipQ');
+const nextQ = qs('#nextQ');
+
+const resultsModal = qs('#resultsModal');
+const resultsBox = qs('#resultsBox');
+const resultsContainer = qs('#resultsContainer');
+const resultsPct = qs('#resultsPct');
+const closeResults = qs('#closeResults');
+
+/* ---------- Audio ---------- */
+const chillAudio = new Audio('https://cdn.pixabay.com/download/audio/2021/09/07/audio_c3b90e743f.mp3?filename=relaxing-ambient-110397.mp3');
+chillAudio.loop = true; chillAudio.volume = 0.45;
+
+/* ---------- Render grid ---------- */
+function renderGrid(filter=''){
+  grid.innerHTML='';
+  // Add card
+  const addCard = document.createElement('div'); addCard.className='card add-card';
+  addCard.innerHTML=`<div class='add-icon'>+</div><div class='title' style='text-align:center;font-weight:700'>Add new project</div>`;
+  addCard.onclick = ()=>openProjectModal();
+  grid.appendChild(addCard);
+
+  projects.forEach(p=>{
+    if(filter && !p.name.toLowerCase().includes(filter.toLowerCase())) return;
+    const card = document.createElement('div'); card.className='card project-card';
+    // menu
+    const top = document.createElement('div'); top.className='top-right';
+    const btn = document.createElement('button'); btn.className='menu-btn'; btn.innerText='⋯';
+    const popup = document.createElement('div'); popup.className='desc-popup'; popup.innerText = p.description || 'No description';
+    // menu actions
+    const menuWrap = document.createElement('div'); menuWrap.style.display='flex'; menuWrap.style.gap='6px';
+    const editBtn = document.createElement('button'); editBtn.className='menu-btn'; editBtn.title='Edit project'; editBtn.innerText='✎';
+    const delBtn = document.createElement('button'); delBtn.className='menu-btn'; delBtn.title='Delete project'; delBtn.innerText='🗑';
+
+    btn.onclick = (e)=>{ e.stopPropagation(); popup.style.display = popup.style.display==='block' ? 'none' : 'block'; };
+    editBtn.onclick = (e)=>{ e.stopPropagation(); openProjectModal(p.id); };
+    delBtn.onclick = (e)=>{ e.stopPropagation(); if(confirm('Delete this project?')){ deleteProject(p.id); } };
+
+    top.appendChild(btn); top.appendChild(popup); top.appendChild(menuWrap);
+    menuWrap.appendChild(editBtn); menuWrap.appendChild(delBtn);
+    card.appendChild(top);
+
+    // thumb
+    const thumb = document.createElement('div'); thumb.className='thumb';
+    if(p.image) thumb.innerHTML = `<img src='${p.image}'>`; else thumb.innerHTML = `<div class='muted'>No image</div>`;
+    card.appendChild(thumb);
+
+    const title = document.createElement('div'); title.className='title'; title.innerText = p.name || 'Untitled'; card.appendChild(title);
+
+    card.onclick = ()=>openEditor(p.id);
+    grid.appendChild(card);
+  });
+}
+
+/* ---------- Create / Edit Project ---------- */
+let editingProjectId = null;
+function openProjectModal(id=null){
+  editingProjectId = id;
+  if(id){
+    const p = projects.find(x=>x.id===id);
+    pmTitle.innerText = 'Edit project'; pmName.value = p.name; pmDesc.value = p.description || ''; pmWordCount.innerText = (p.description?p.description.trim().split(/\s+/).filter(Boolean).length:0) + ' / 100 words';
+  } else { pmTitle.innerText = 'Create project'; pmName.value=''; pmDesc.value=''; pmWordCount.innerText='0 / 100 words'; pmImage.value=''; }
+  projectModal.style.display='flex'; setTimeout(()=>projectModalBox.classList.remove('hidden'),20);
+}
+pmCancel.onclick = ()=>{ projectModalBox.classList.add('hidden'); setTimeout(()=>projectModal.style.display='none',220); };
+pmDesc.addEventListener('input',()=>{ const w = pmDesc.value.trim().split(/\s+/).filter(Boolean).length; pmWordCount.innerText = w + ' / 100 words'; if(w>100) pmWordCount.style.color='crimson'; else pmWordCount.style.color='#666' });
+
+pmSave.onclick = ()=>{
+  const name = pmName.value.trim() || 'Untitled';
+  const desc = pmDesc.value.trim();
+  const words = desc.split(/\s+/).filter(Boolean).length;
+  if(words>100){ alert('Description must be 100 words or fewer.'); return; }
+
+  const file = pmImage.files[0];
+  if(editingProjectId){
+    const p = projects.find(x=>x.id===editingProjectId);
+    p.name = name; p.description = desc;
+    if(file){ const r = new FileReader(); r.onload = e=>{ p.image = e.target.result; saveAll(); renderGrid(searchInput.value); projectModalBox.classList.add('hidden'); setTimeout(()=>projectModal.style.display='none',220); }; r.readAsDataURL(file);} else { saveAll(); renderGrid(searchInput.value); projectModalBox.classList.add('hidden'); setTimeout(()=>projectModal.style.display='none',220); }
+  } else {
+    const p = { id: uid(), name, description: desc, image: null, qa: [] };
+    if(file){ const r = new FileReader(); r.onload = e=>{ p.image = e.target.result; projects.push(p); saveAll(); renderGrid(searchInput.value); projectModalBox.classList.add('hidden'); setTimeout(()=>projectModal.style.display='none',220); }; r.readAsDataURL(file); }
+    else { projects.push(p); saveAll(); renderGrid(searchInput.value); projectModalBox.classList.add('hidden'); setTimeout(()=>projectModal.style.display='none',220); }
+  }
+};
+
+function deleteProject(id){ projects = projects.filter(x=>x.id!==id); saveAll(); renderGrid(searchInput.value); }
+
+/* ---------- Editor (QA) ---------- */
+let currentEditing = null;
+function openEditor(projectId){
+  const p = projects.find(x=>x.id===projectId); currentEditing = p; editorProjectName.innerText = p.name;
+  // ensure at least 10 lines
+  if(!p.qa) p.qa = [];
+  while(p.qa.length<10) p.qa.push({q:'',a:''});
+  loadQAList(); editorModal.style.display='flex'; setTimeout(()=>editorBox.classList.remove('hidden'),20);
+}
+function loadQAList(){ qaList.innerHTML=''; currentEditing.qa.forEach((pair,i)=>{
+  const row = document.createElement('div'); row.className='qa-row';
+  row.innerHTML = `<input class='q' placeholder='Question ${i+1}' data-i='${i}' value='${escapeHtml(pair.q)}'>
+                   <input class='a' placeholder='Answer ${i+1}' data-i='${i}' value='${escapeHtml(pair.a)}'>`;
+  qaList.appendChild(row);
+}); linesCount.innerText = currentEditing.qa.length;
+  // bind
+  qsa('.q').forEach(inp=>inp.oninput = e=>{ currentEditing.qa[e.target.dataset.i].q = e.target.value; saveAll(); });
+  qsa('.a').forEach(inp=>inp.oninput = e=>{ currentEditing.qa[e.target.dataset.i].a = e.target.value; saveAll(); });
+}
+addQA.onclick = ()=>{ if(currentEditing.qa.length>=100) return alert('Max 100 lines'); currentEditing.qa.push({q:'',a:''}); loadQAList(); qaList.scrollTop = qaList.scrollHeight; }
+cancelQA.onclick = ()=>{ editorBox.classList.add('hidden'); setTimeout(()=>editorModal.style.display='none',220); }
+
+submitQuiz.onclick = ()=>{
+  if(!validateFirst10()) return; saveAll(); editorBox.classList.add('hidden'); setTimeout(()=>editorModal.style.display='none',220); }
+submitAndPlay.onclick = ()=>{
+  if(!validateFirst10()) return; saveAll(); editorBox.classList.add('hidden'); setTimeout(()=>editorModal.style.display='none',220); startCountdown(()=>beginQuiz(currentEditing.id)); }
+
+function validateFirst10(){ for(let i=0;i<10;i++){ if(!currentEditing.qa[i]||!currentEditing.qa[i].q.trim()||!currentEditing.qa[i].a.trim()){ alert('Please fill both Question and Answer for lines 1–10 (required).'); return false; } } return true; }
+
+/* ---------- Countdown ---------- */
+function startCountdown(cb){ countModal.style.display='flex'; countBox.classList.remove('hidden'); let n=5; countNumber.innerText = n; let t = setInterval(()=>{ n--; if(n<=0){ clearInterval(t); countBox.classList.add('hidden'); countModal.style.display='none'; cb(); } else countNumber.innerText = n; },1000); }
+const countBox = qs('#countBox');
+
+/* ---------- Quiz Play ---------- */
+let playList = []; let playPos = 0; let playAnswers = []; let currentProjectId = null;
+function beginQuiz(projectId){
+  // prepare
+  currentProjectId = projectId; const p = projects.find(x=>x.id===projectId);
+  playList = p.qa.filter(x=>x.q && x.a).map(x=>({q:x.q,a:x.a}));
+  if(playList.length===0) return alert('No questions available.');
+  // shuffle
+  for(let i=playList.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [playList[i],playList[j]]=[playList[j],playList[i]]; }
+  playPos = 0; playAnswers = new Array(playList.length).fill(null);
+  playTitle.innerText = p.name + ' — Quiz'; showPlay(); playModal.style.display='flex'; setTimeout(()=>playBox.classList.remove('hidden'),20); chillAudio.currentTime=0; chillAudio.play(); }
+
+function showPlay(){ const item = playList[playPos]; playQuestion.innerText = (playPos+1) + '. ' + item.q; playAnswer.value = ''; playProgress.innerText = (playPos+1) + ' / ' + playList.length; }
+nextQ.onclick = ()=>{ const user = playAnswer.value.trim(); playAnswers[playPos]=user; // store
+  // check then move
+  playPos++; if(playPos>=playList.length){ endQuiz(); } else showPlay(); }
+prevQ.onclick = ()=>{ if(playPos>0){ playPos--; showPlay(); } }
+skipQ.onclick = ()=>{ playAnswers[playPos]=null; if(playPos<playList.length-1){ playPos++; showPlay(); } else endQuiz(); }
+
+function endQuiz(){ playModal.style.display='none'; playBox.classList.add('hidden'); chillAudio.pause(); // evaluate
+  const results = playList.map((it,i)=>({q:it.q, correct:it.a, answer:playAnswers[i]})); showResults(results); }
+
+/* ---------- Results ---------- */
+function showResults(results){ resultsContainer.innerHTML=''; let correctCount=0; results.forEach((r,idx)=>{
+  const div = document.createElement('div'); div.className='result-row';
+  const user = (r.answer===null||r.answer===undefined||r.answer==='')?'<span class="muted">(no answer)</span>':escapeHtml(r.answer);
+  const isCorrect = (r.answer||'').trim().toLowerCase() === (r.correct||'').trim().toLowerCase();
+  if(isCorrect) correctCount++;
+  div.innerHTML = `<div style='display:flex;justify-content:space-between;align-items:center'><div><b>${idx+1}.</b> ${escapeHtml(r.q)}</div><div class='${isCorrect?"correct":"wrong"}'>${isCorrect?"Correct":"Wrong"}</div></div>
+                   <div style='margin-top:6px'><div><b>Your answer:</b> ${user}</div><div><b>Correct:</b> ${escapeHtml(r.correct)}</div></div>`;
+  resultsContainer.appendChild(div);
+}); const pct = Math.round((correctCount / results.length) * 100); resultsPct.innerText = pct + '%'; scoreBubble.innerText = 'Score: ' + pct + '%'; scoreBubble.style.display = 'block'; resultsModal.style.display='flex'; setTimeout(()=>resultsBox.classList.remove('hidden'),20);
+  // persist last score on project
+  const p = projects.find(x=>x.id===currentProjectId); if(p){ p.lastScore = pct; saveAll(); }
+}
+closeResults.onclick = ()=>{ resultsBox.classList.add('hidden'); setTimeout(()=>resultsModal.style.display='none',220); }
+
+/* ---------- Helpers & Events ---------- */
+function escapeHtml(s){ if(s==null) return ''; return s.toString().replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#39;"); }
+
+searchInput.addEventListener('input',e=>{ renderGrid(e.target.value); });
+newBtn.addEventListener('click',()=>openProjectModal());
+
+// click overlay to close modals when clicking outside modal box
+qsa('.overlay').forEach(ov=>ov.addEventListener('click',e=>{ if(e.target === ov){ const inner = ov.querySelector('.modal'); if(inner) { inner.classList.add('hidden'); setTimeout(()=>ov.style.display='none',220); } } }));
+
+// init render and score
+function updateScoreBubble(){ // compute latest score from all projects average or show last score of last played project
+  const last = projects.slice().reverse().find(p=>typeof p.lastScore==='number'); if(last){ scoreBubble.innerText = 'Score: ' + last.lastScore + '%'; scoreBubble.style.display='block'; } else { scoreBubble.innerText='Score: 0%'; }
+}
+
+// load once and render
+renderGrid(); updateScoreBubble();
+
+</script>
+</body>
+</html>
